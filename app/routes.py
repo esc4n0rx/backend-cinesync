@@ -95,31 +95,38 @@ def join_room():
         user_id = data['user_id']
         password = data.get('password')
 
-       
+        # Verificar a existência da sala
         room = Room.query.get(room_id)
         if not room:
             return jsonify({'error': 'Sala não encontrada'}), 404
 
-       
-        if len(room.users) >= 5:
+        # Contar usuários na sala
+        user_count = RoomUser.query.filter_by(room_id=room_id).count()
+        if user_count >= 5:
             return jsonify({'error': 'Sala cheia'}), 400
 
-       
+        # Validar senha
         if room.is_private:
             if not password or not bcrypt.checkpw(password.encode('utf-8'), room.password.encode('utf-8')):
                 return jsonify({'error': 'Senha incorreta'}), 401
 
+        # Verificar se o usuário já está na sala
         existing_user = RoomUser.query.filter_by(room_id=room_id, user_id=user_id).first()
         if existing_user:
             return jsonify({'error': 'Usuário já está na sala'}), 400
 
+        # Adicionar usuário à sala
         new_room_user = RoomUser(room_id=room_id, user_id=user_id)
         db.session.add(new_room_user)
         db.session.commit()
 
         return jsonify({'message': 'Usuário entrou na sala com sucesso'}), 200
     except Exception as e:
+        print(f"Erro na rota /join: {e}")  # Log detalhado
         return jsonify({'error': str(e)}), 500
+
+
+
 
 
 #lista salas publicas
@@ -174,18 +181,15 @@ def list_room_users(room_id):
         return jsonify(users), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-    
 
-
+#status da sala por id
 @auth.route('/room/<int:room_id>', methods=['GET'])
 def get_room_details(room_id):
     try:
-        # Buscar a sala pelo ID
         room = Room.query.get(room_id)
         if not room:
             return jsonify({'error': 'Sala não encontrada'}), 404
 
-        # Buscar os participantes da sala
         participants = RoomUser.query.filter_by(room_id=room_id).all()
         participant_data = [
             {
@@ -195,7 +199,6 @@ def get_room_details(room_id):
             for participant in participants
         ]
 
-        # Retornar os dados da sala e dos participantes
         return jsonify({
             'room': {
                 'id': room.id,
@@ -207,5 +210,41 @@ def get_room_details(room_id):
         }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@auth.route('/salas/<int:room_id>/content', methods=['POST'])
+def set_content(room_id):
+    try:
+        data = request.get_json()
+        content_url = data.get('content_url')
+        content_type = data.get('content_type')
+        current_timestamp = data.get('current_timestamp', 0)
+
+        if not content_url or not content_type:
+            return jsonify({'error': 'URL do conteúdo e tipo são obrigatórios'}), 400
+
+        if content_type not in ['youtube', 'hls']:
+            return jsonify({'error': 'Tipo de conteúdo inválido'}), 400
+
+        room = Room.query.get(room_id)
+        if not room:
+            return jsonify({'error': 'Sala não encontrada'}), 404
+
+        # Verifica se o usuário é o criador da sala
+        user_id = request.json.get('user_id')
+        if room.created_by != user_id:
+            return jsonify({'error': 'Apenas o criador da sala pode configurar o conteúdo'}), 403
+
+        room.content_url = content_url
+        room.content_type = content_type
+        room.current_timestamp = current_timestamp
+        room.is_paused = True
+        db.session.commit()
+
+        return jsonify({'message': 'Conteúdo configurado com sucesso'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 
 

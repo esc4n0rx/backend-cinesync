@@ -20,9 +20,16 @@ class Room(db.Model):
     created_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     users = db.relationship('RoomUser', backref='room', cascade="all, delete-orphan")
+    content_url = db.Column(db.String(300), nullable=True)  # URL do conteúdo
+    content_type = db.Column(db.String(10), nullable=True)  # Tipo (youtube/hls)
+    current_timestamp = db.Column(db.Float, default=0)  # Tempo atual do player
+    is_paused = db.Column(db.Boolean, default=True)  # Estado do player
 
     def __repr__(self):
         return f'<Room {self.name}>'
+
+
+
 
 
 class RoomUser(db.Model):

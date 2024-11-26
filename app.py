@@ -4,17 +4,13 @@ from app.models import User
 from flask_cors import CORS
 from flask_socketio import SocketIO, join_room, leave_room
 
-# Inicializar a aplicação
 app = create_app()
 CORS(app, resources={r"/api/*": {"origins": "http://localhost:3000"}})
 
-# Inicializar SocketIO
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Registrar Blueprint
 app.register_blueprint(auth, url_prefix='/api/auth')
 
-# Eventos de WebSocket
 @socketio.on('join')
 def on_join(data):
     room = data['room']
@@ -29,10 +25,44 @@ def on_leave(data):
     leave_room(room)
     socketio.emit('user_left', {'nickname': nickname}, to=room)
 
-# Criar banco de dados se não existir
+
+@socketio.on('setContent')
+def handle_set_content(data):
+    room = data.get('room')
+    content_url = data.get('content_url')
+    content_type = data.get('content_type')
+    timestamp = data.get('timestamp', 0)
+
+    socketio.emit('updateContent', {
+        'content_url': content_url,
+        'content_type': content_type,
+        'timestamp': timestamp
+    }, to=room)
+
+@socketio.on('play')
+def handle_play(data):
+    room = data.get('room')
+    timestamp = data.get('timestamp')
+
+    socketio.emit('playerPlay', {'timestamp': timestamp}, to=room)
+
+@socketio.on('pause')
+def handle_pause(data):
+    room = data.get('room')
+    timestamp = data.get('timestamp')
+
+    socketio.emit('playerPause', {'timestamp': timestamp}, to=room)
+
+@socketio.on('seek')
+def handle_seek(data):
+    room = data.get('room')
+    timestamp = data.get('timestamp')
+
+    socketio.emit('playerSeek', {'timestamp': timestamp}, to=room)
+
+
 with app.app_context():
     db.create_all()
 
-# Iniciar o servidor com suporte a WebSocket
 if __name__ == '__main__':
     socketio.run(app, debug=True, port=4000)
